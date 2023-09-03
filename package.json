@@ -1,0 +1,20 @@
+{
+  "type": "commonjs",
+  "dependencies": {
+    "@types/js-yaml": "^4.0.5",
+    "@types/node": "^20.4.5",
+    "js-yaml": "^4.1.0",
+    "mqtt": "^5.0.1",
+    "netbus": "../../lib/netbus",
+    "shelter-core": "../../lib/shelter-core",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.1.6"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "scripts": {
+    "start:dev": "nodemon",
+    "build": "tsc"
+  }
+}
