@@ -426,7 +426,7 @@ ms@^2.1.1:
 
 "netbus@https://github.com/iNiSiRe/netbus.js":
   version "1.0.0"
-  resolved "https://github.com/iNiSiRe/netbus.js#7418a28523175bb8775c85d11b08cfdf45a879d0"
+  resolved "https://github.com/iNiSiRe/netbus.js#39e8448b6e08102e1c0d5d131979c97ae1beee91"
   dependencies:
     mqtt "^5.0.1"
 
