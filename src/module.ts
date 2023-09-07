@@ -1,11 +1,11 @@
 import {Bus, Event, Result, Query} from "netbus";
-import {Humidifier as XiaomiHumidifier} from "./humidifier";
+import {Humidifier} from "./humidifier";
 import fs from "fs";
 import * as Yaml from 'js-yaml';
 import {XiaomiGateway} from "./gateway";
-import {ChangeSet} from "./state";
 import {ChildDevice} from "./childDevice";
 import {MiioDevice} from "./device";
+import {Properties, ShelterDevice, ShelterModule} from "shelter-core/module";
 
 type DeviceConfig = { id: string, model?: string, parameters: Map<string, any> };
 
@@ -28,157 +28,20 @@ export class Configuration {
     }
 }
 
-export interface ModuleDevice
-{
-    get id(): string;
-
-    get model(): string;
-
-    get properties(): object;
-
-    call(method: string, params: object): Promise<Result>;
-}
-
-export class Humidifier implements ModuleDevice
-{
-    private readonly device: XiaomiHumidifier;
-
+export class XiaomiModule extends ShelterModule {
     constructor(
-        public readonly config: DeviceConfig,
-        public readonly bus: Bus
-    ) {
-        const host = config.parameters.get('host');
-        const token = config.parameters.get('token');
-        this.device = new XiaomiHumidifier(host, token);
-        this.device.state.on('update', this.dispatchUpdate.bind(this));
-    }
-
-    private dispatchUpdate(changed: ChangeSet): void {
-        this.bus.dispatch({
-            name: 'Device.Update',
-            data: {device: this.id, update: Object.fromEntries(changed.entries()), properties: this.device.props}
-        });
-    }
-
-    async call(method: string, params: object): Promise<Result> {
-        switch (method) {
-            case 'enable': {
-                await this.device.enable();
-                break;
-            }
-            case 'disable': {
-                await this.device.disable();
-                break;
-            }
-        }
-
-        return new Result(0, this.properties);
-    }
-
-    get properties(): object {
-        return this.device.props;
-    }
-
-    get id(): string {
-        return this.config.id;
-    }
-
-    get model(): string {
-        return this.config.model ?? '';
-    }
-}
-
-export class Gateway implements ModuleDevice
-{
-    constructor(
-        public readonly id: string,
-        public readonly model: string,
-        public readonly device: XiaomiGateway
-    ) {
-    }
-
-    async call(method: string, params: object): Promise<Result> {
-        return new Result(-1, {});
-    }
-
-    get properties(): object {
-        return {};
-    }
-}
-
-export class GatewayChildDevice implements ModuleDevice
-{
-    constructor(
-        private readonly device: ChildDevice,
-        private readonly bus: Bus
-    ) {
-        device.state.on('update', this.dispatchUpdate.bind(this));
-    }
-
-    call(method: string, params: object): Promise<Result> {
-        return Promise.resolve(new Result(-1, {error: 'Method not exists'}));
-    }
-
-    get id(): string {
-        return this.device.did;
-    }
-
-    get model(): string {
-        return this.device.model;
-    }
-
-    get properties(): object {
-        return this.device.state.props;
-    }
-
-    private dispatchUpdate(changes: ChangeSet) {
-        this.bus.dispatch({
-            name: 'Device.Update',
-            data: {device: this.id, update: Object.fromEntries(changes.entries()), properties: this.properties}
-        });
-    }
-}
-
-export class XiaomiModule
-{
-    private devices: ModuleDevice[] = [];
-
-    private startedAt: number = 0;
-
-    constructor(
-        private readonly bus: Bus,
+        bus: Bus,
         private readonly config: Configuration
     ) {
-        this.bus.subscribe('Discover.Request', this.handleDiscoverRequest.bind(this));
-
-        this.bus.on('Module.Status', async (query: Query): Promise<Result> => {
-            const FormatMemoryUsage = (data: number) => Math.round((data / 1024 / 1024) * 100) / 100;
-
-            return new Result(0, {
-                uptime: Math.floor((Date.now() - this.startedAt) / 1000),
-                memory: FormatMemoryUsage(process.memoryUsage().rss)
-            });
-        });
-
-        this.bus.on('Device.Call', async (query: Query): Promise<Result> => {
-            const call: { device: string, method: string, parameters: object } = query.data;
-
-            for (const device of this.devices) {
-                if (device.id === call.device) {
-                    return device.call(call.method, call.parameters);
-                }
-            }
-
-            return new Result(-1, {error: 'Device not found'});
-        });
+        super(bus);
     }
 
-    private async loadDevice(config: DeviceConfig)
+    private async loadDevice(config: DeviceConfig) 
     {
-        if (!config.model) {
-            const host = config.parameters.get('host');
-            const token = config.parameters.get('token');
+        const host = config.parameters.get('host');
+        const token = config.parameters.get('token');
 
+        if (!config.model) {
             const miio = new MiioDevice(host, token)
             const info = await miio.info()
 
@@ -194,22 +57,21 @@ export class XiaomiModule
 
         switch (config.model) {
             case 'lumi.gateway.mgl03': {
-                const host = config.parameters.get('host');
-                const token = config.parameters.get('token');
-                const gateway = new XiaomiGateway(host, token);
-                await gateway.setup();
-                device = new Gateway(config.id, config.model, gateway);
+                const did = config.parameters.get('did');
+                
+                device = new XiaomiGateway(host, token, config.id, config.model, did);
+                await device.setup();
 
-                for (const subDevice of gateway.getSubDevices()) {
-                    this.devices.push(new GatewayChildDevice(subDevice, this.bus));
-                    console.log('Xiaomi gateway: child device is loaded', subDevice.did, device.model);
+                for (const childDevice of device.getChildDevices()) {
+                    this.registerDevice(childDevice);
+                    console.log('Xiaomi gateway: child device is loaded', childDevice.did, childDevice.model);
                 }
 
                 break;
             }
 
             case 'zhimi.humidifier.ca1': {
-                device = new Humidifier(config, this.bus);
+                device = new Humidifier(config.id, config.model, host, token);
 
                 break;
             }
@@ -223,28 +85,18 @@ export class XiaomiModule
             return;
         }
 
-        this.devices.push(device);
+        this.registerDevice(device);
 
         console.log(`Device #${device.id} (${device.model}) is loaded`);
     }
 
-    public async setup() {
+    public async start() {
+        await super.start();
+
         for (const config of this.config.devices) {
             await this.loadDevice(config);
         }
 
         console.log('Xiaomi module is ready', `Devices loaded: ${this.devices.length}`);
-
-        this.startedAt = Date.now();
-    }
-
-    private handleDiscoverRequest(): void {
-        for (const device of this.devices) {
-            this.bus.dispatch(new Event('Discover.Response', {
-                device: device.id,
-                model: device.model,
-                properties: device.properties
-            }));
-        }
     }
 }

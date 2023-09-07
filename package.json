@@ -4,7 +4,8 @@
     "@types/js-yaml": "^4.0.5",
     "js-yaml": "^4.1.0",
     "mqtt": "^5.0.1",
-    "netbus": "https://github.com/iNiSiRe/netbus.js"
+    "netbus": "https://github.com/iNiSiRe/netbus.js",
+    "shelter-core": "https://github.com/iNiSiRe/shelter-core.js"
   },
   "devDependencies": {
     "@types/node": "^20.4.5",

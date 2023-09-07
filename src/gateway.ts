@@ -1,20 +1,30 @@
 import {WeatherSensor, MagnetSensor, MotionSensor, ChildDevice, ChildDeviceFactory} from "./childDevice";
 import {ZigbeeHeartbeat, ZigbeeObserver, ZigbeeReport} from "./zigbee";
 import {MiioDevice} from "./device";
-import {EventEmitter} from "events";
+import {CallResult, DeviceState, Properties, ShelterDevice} from "shelter-core/module";
 
-export class XiaomiGateway extends MiioDevice
+export type XiaomiGatewaySheme = {alarm: boolean };
+
+export class XiaomiGateway implements ShelterDevice<XiaomiGatewaySheme>
 {
+    private readonly miio: MiioDevice;
+
     private readonly observer: ZigbeeObserver;
 
-    private devices: Array<ChildDevice> = [];
+    private devices: Array<ChildDevice<any>> = [];
+
+    public state: DeviceState<XiaomiGatewaySheme> = new DeviceState({alarm: false});
 
     constructor(
         host: string,
         token: string,
+        public readonly id: string,
+        public readonly model: string,
+        private readonly did: string,
         private readonly childFactory: ChildDeviceFactory = new ChildDeviceFactory()
     ) {
-        super(host, token);
+        this.miio = new MiioDevice(host, token);
+
         this.observer = new ZigbeeObserver(host);
         this.observer.on('report', this.handleReport.bind(this));
         this.observer.on('heartbeat', this.handleHeartbeat.bind(this));
@@ -26,7 +36,7 @@ export class XiaomiGateway extends MiioDevice
         await this.loadDevices();
     }
 
-    public getSubDevices(): Array<ChildDevice>
+    public getChildDevices(): Array<ChildDevice<any>>
     {
         return this.devices;
     }
@@ -62,7 +72,7 @@ export class XiaomiGateway extends MiioDevice
 
     private async getDeviceList(): Promise<Array<{did: string, model: string, num: number, total: number}>>
     {
-        const result = await this.call('get_device_list', []);
+        const result = await this.miio.call('get_device_list', []);
 
         if (result.code !== 0) {
             return [];
@@ -71,24 +81,77 @@ export class XiaomiGateway extends MiioDevice
         return result.data;
     }
 
-    public handleReport(report: ZigbeeReport): void
+    private handleReport(report: ZigbeeReport): void
     {
         for (const device of this.devices) {
             if (device.did === report.did) {
                 device.handleZigbeeReport(report.params, {rssi: report.rssi, zseq: report.zseq});
-                console.log('Handle ZigbeeReport', device.did, device.model, device.state.props);
+                console.log('Handle ZigbeeReport', device.did, device.model, device.state.properties);
             }
         }
     }
 
-    public handleHeartbeat(heartbeat: ZigbeeHeartbeat): void
+    private handleHeartbeat(heartbeat: ZigbeeHeartbeat): void
     {
         for (const update of heartbeat.params) {
             for (const device of this.devices) {
                 if (device.did === update.did) {
                     device.handleZigbeeHeartbeat(update.res_list, {rssi: heartbeat.rssi, zseq: update.zseq});
-                    console.log('Handle ZigbeeHeartbeat', device.did, device.model, device.state.props);
+                    console.log('Handle ZigbeeHeartbeat', device.did, device.model, device.state.properties);
                 }
+            }
+        }
+    }
+
+    public async triggerAlarm(enable: boolean, duration: number|null = null)
+    {
+        const result = await this.miio.call('set_properties', [{
+            did: this.did.toString(),
+            siid: 3,
+            piid: 22,
+            value: enable ? 1 : 0
+        }]);
+
+        if (result.code === 0) {
+            this.state.properties.alarm = enable;
+            this.state.commit();
+        }
+
+        if (duration !== null) {
+            setTimeout(() => this.triggerAlarm(false), duration * 1000);
+        }
+
+        return result;
+    }
+
+    async call(method: string, params: object): Promise<CallResult> {
+        switch (method) {
+            case 'triggerAlarm': {
+                const args = params as { enable?: boolean, duration?: number };
+
+                if (args.enable === undefined) {
+                    return {code: -1, data: {error: 'Bad parameter "enable"'}};
+                }
+
+                const result = await this.triggerAlarm(args.enable, args.duration ?? null);
+
+                return {code: 0, data: {properties: this.state.properties}};
+            }
+
+            case 'miio.call': {
+                const args = params as {method?: string, params?: any};
+
+                if (args.method === undefined || args.params === undefined) {
+                    return {code: -1, data: {error: 'Bad parameters'}};
+                }
+
+                const result = await this.miio.call(args.method, args.params);
+
+                return {code: 0, data: result};
+            }
+
+            default: {
+                return {code: -1, data: {error: 'Bad method'}};
             }
         }
     }

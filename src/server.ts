@@ -1,5 +1,5 @@
 import {Connector} from "netbus";
-import {Configuration, XiaomiModule} from "../src/module";
+import {Configuration, XiaomiModule} from "./module";
 
 const busId: string = process.env.BUS_ID ?? '';
 const busHost: string = process.env.BUS ?? '';
@@ -13,5 +13,5 @@ if (busId === '' || busHost === '' || configPath === '') {
 (async () => {
     const bus = await Connector.connect(busId, busHost);
     const module = new XiaomiModule(bus, Configuration.fromFile(configPath))
-    await module.setup();
+    await module.start();
 })();
