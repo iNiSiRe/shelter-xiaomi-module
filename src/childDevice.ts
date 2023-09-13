@@ -24,21 +24,21 @@ export abstract class ChildDevice<T extends object> implements ZigbeeDevice, She
         return {code: -1, data: {error: 'Bad method'}};
     }
 
-    handleZigbeeReport(update: ZigbeeParam[], quality: ZigbeeQuality)
-    {
-    }
+    abstract handleZigbeeReport(update: ZigbeeParam[], quality: ZigbeeQuality): void;
 
-    handleZigbeeHeartbeat(update: ZigbeeParam[], quality: ZigbeeQuality)
-    {
-    }
+    abstract handleZigbeeHeartbeat(update: ZigbeeParam[], quality: ZigbeeQuality): void;
 }
 
 export type BatteryProps = {battery_voltage: number};
 
 export class BatteryDevice<T extends BatteryProps> extends ChildDevice<T>
 {
-    handleZigbeeHeartbeat(update: ZigbeeParam[], quality: ZigbeeQuality)
-    {
+    handleZigbeeReport(update: ZigbeeParam[], quality: ZigbeeQuality) {
+    }
+
+    handleZigbeeHeartbeat(update: ZigbeeParam[], quality: ZigbeeQuality) {
+        console.log(`Device #${this.did}, handle heartbeat`, update);
+
         for (const param of update) {
             switch (param.res_name) {
                 case '8.0.2008': {
@@ -101,7 +101,7 @@ export class WeatherSensor extends BatteryDevice<WeatherSensorProps>
 
 type MotionSensorProps = BatteryProps & {motion: {active: boolean, at: null|number}};
 
-export class MotionSensor extends ChildDevice<MotionSensorProps> {
+export class MotionSensor extends BatteryDevice<MotionSensorProps> {
 
     constructor(did: string, model: string) {
         super(
@@ -128,7 +128,7 @@ export class MotionSensor extends ChildDevice<MotionSensorProps> {
 
 type MagnetSensorProps = BatteryProps & {open: boolean};
 
-export class MagnetSensor extends ChildDevice<MagnetSensorProps>
+export class MagnetSensor extends BatteryDevice<MagnetSensorProps>
 {
     constructor(did: string, model: string) {
         super(
@@ -147,7 +147,7 @@ export class MagnetSensor extends ChildDevice<MagnetSensorProps>
                 }
             }
         }
-        
+
         this.state.commit();
     }
 }

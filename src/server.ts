@@ -15,3 +15,18 @@ if (busId === '' || busHost === '' || configPath === '') {
     const module = new XiaomiModule(bus, Configuration.fromFile(configPath))
     await module.start();
 })();
+
+process.on('exit', code => {
+    console.log(`Process exited with code: ${code}`)
+    console.trace();
+})
+
+process.on('uncaughtException', err => {
+    console.log(`Uncaught Exception: ${err.message}`)
+    process.exit(1)
+})
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.log('Unhandled rejection at ', promise, reason)
+    process.exit(1)
+})
