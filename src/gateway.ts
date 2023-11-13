@@ -1,19 +1,17 @@
-import {WeatherSensor, MagnetSensor, MotionSensor, ChildDevice, ChildDeviceFactory} from "./childDevice";
+import {ChildDevice, ChildDeviceFactory} from "./childDevice";
 import {ZigbeeHeartbeat, ZigbeeObserver, ZigbeeReport} from "./zigbee";
 import {MiioDevice} from "./device";
-import {CallResult, DeviceState, Properties, ShelterDevice} from "shelter-core/module";
+import {CallResult, ShelterDevice} from "shelter-core/module";
 
-export type XiaomiGatewaySheme = {alarm: boolean };
-
-export class XiaomiGateway implements ShelterDevice<XiaomiGatewaySheme>
+export class XiaomiGateway extends ShelterDevice
 {
     private readonly miio: MiioDevice;
 
     private readonly observer: ZigbeeObserver;
 
-    private devices: Array<ChildDevice<any>> = [];
+    private devices: Array<ChildDevice> = [];
 
-    public state: DeviceState<XiaomiGatewaySheme> = new DeviceState({alarm: false});
+    private alarm: boolean = false;
 
     constructor(
         host: string,
@@ -23,11 +21,19 @@ export class XiaomiGateway implements ShelterDevice<XiaomiGatewaySheme>
         private readonly did: string,
         private readonly childFactory: ChildDeviceFactory = new ChildDeviceFactory()
     ) {
+        super(id, model);
+
         this.miio = new MiioDevice(host, token);
 
         this.observer = new ZigbeeObserver(host);
         this.observer.on('report', this.handleReport.bind(this));
         this.observer.on('heartbeat', this.handleHeartbeat.bind(this));
+    }
+
+    get properties(): object {
+        return {
+            alarm: this.alarm
+        };
     }
 
     public async setup()
@@ -36,7 +42,7 @@ export class XiaomiGateway implements ShelterDevice<XiaomiGatewaySheme>
         await this.loadDevices();
     }
 
-    public getChildDevices(): Array<ChildDevice<any>>
+    public getChildDevices(): Array<ChildDevice>
     {
         return this.devices;
     }
@@ -86,7 +92,7 @@ export class XiaomiGateway implements ShelterDevice<XiaomiGatewaySheme>
         for (const device of this.devices) {
             if (device.did === report.did) {
                 device.handleZigbeeReport(report.params, {rssi: report.rssi, zseq: report.zseq});
-                console.log('Handle ZigbeeReport', device.did, device.model, device.state.properties);
+                console.log('Handle ZigbeeReport', device.did, device.model, device.properties);
             }
         }
     }
@@ -97,7 +103,7 @@ export class XiaomiGateway implements ShelterDevice<XiaomiGatewaySheme>
             for (const device of this.devices) {
                 if (device.did === update.did) {
                     device.handleZigbeeHeartbeat(update.res_list, {rssi: heartbeat.rssi, zseq: update.zseq});
-                    console.log('Handle ZigbeeHeartbeat', device.did, device.model, device.state.properties);
+                    console.log('Handle ZigbeeHeartbeat', device.did, device.model, device.properties);
                 }
             }
         }
@@ -113,8 +119,8 @@ export class XiaomiGateway implements ShelterDevice<XiaomiGatewaySheme>
         }]);
 
         if (result.code === 0) {
-            this.state.properties.alarm = enable;
-            this.state.commit();
+            this.alarm = enable;
+            this.commit();
         }
 
         if (duration !== null) {
@@ -135,7 +141,7 @@ export class XiaomiGateway implements ShelterDevice<XiaomiGatewaySheme>
 
                 const result = await this.triggerAlarm(args.enable, args.duration ?? null);
 
-                return {code: 0, data: {properties: this.state.properties}};
+                return {code: 0, data: {properties: this.properties}};
             }
 
             case 'miio.call': {

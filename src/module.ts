@@ -1,11 +1,10 @@
-import {Bus, Event, Result, Query} from "netbus";
+import {Bus} from "netbus";
 import {Humidifier} from "./humidifier";
 import fs from "fs";
 import * as Yaml from 'js-yaml';
 import {XiaomiGateway} from "./gateway";
-import {ChildDevice} from "./childDevice";
 import {MiioDevice} from "./device";
-import {Properties, ShelterDevice, ShelterModule} from "shelter-core/module";
+import {ShelterModule} from "shelter-core/module";
 
 type DeviceConfig = { id: string, model?: string, parameters: Map<string, any> };
 
@@ -36,7 +35,7 @@ export class XiaomiModule extends ShelterModule {
         super(bus);
     }
 
-    private async loadDevice(config: DeviceConfig) 
+    private async loadDevice(config: DeviceConfig)
     {
         const host = config.parameters.get('host');
         const token = config.parameters.get('token');
@@ -58,7 +57,7 @@ export class XiaomiModule extends ShelterModule {
         switch (config.model) {
             case 'lumi.gateway.mgl03': {
                 const did = config.parameters.get('did');
-                
+
                 device = new XiaomiGateway(host, token, config.id, config.model, did);
                 await device.setup();
 

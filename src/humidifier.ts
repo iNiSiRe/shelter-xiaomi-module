@@ -1,13 +1,16 @@
-import { CallResult, DeviceState, ShelterDevice } from "shelter-core/module";
-import {MiioDevice} from "./device";
+import { CallResult, ShelterDevice } from "shelter-core/module";
+import { MiioDevice } from "./device";
 
-export type HumidifierProps = {enabled: boolean, mode: string, temperature: number, humidity: number, water_level: number};
-
-export class Humidifier implements ShelterDevice<HumidifierProps>
+export class Humidifier extends ShelterDevice
 {
     private readonly miio: MiioDevice;
 
-    public state: DeviceState<HumidifierProps> = new DeviceState({enabled: false, mode: 'off', temperature: 0, humidity: 0, water_level: 0})
+    public enabled: boolean = false;
+    public mode: string = 'off';
+    public temperature: number = 0;
+    public humidity: number = 0;
+    public water_level: number = 0;
+    public updatedAt: number = 0;
 
     constructor(
         public readonly id: string,
@@ -15,22 +18,25 @@ export class Humidifier implements ShelterDevice<HumidifierProps>
         host: string,
         token: string
     ) {
+        super(id, model);
+
         this.miio = new MiioDevice(host, token);
 
-        this.loadState().then(properties => {
-            if (properties !== false) {
-                this.state.properties = properties;
-                this.state.commit();
-            }
-        });
+        this.loadState();
 
         setInterval(async () => {
-            const properties = await this.loadState();
-            if (properties !== false) {
-                this.state.properties = properties;
-                this.state.commit();
-            }
+            this.loadState();
         }, 60000);
+    }
+
+    get properties(): object {
+        return {
+            enabled: this.enabled,
+            mode: this.mode,
+            temperature: this.temperature,
+            humidity: this.humidity,
+            water_level: this.water_level
+        };
     }
 
     private async loadState()
@@ -39,18 +45,19 @@ export class Humidifier implements ShelterDevice<HumidifierProps>
 
         if (result.code !== 0) {
             console.error('Humidifier.loadState caused an error', result);
-            return false;
+            return;
         }
 
         const props: ['on'|'off', string, number, number, number] = result.data;
 
-        return {
-            enabled: props[0] === 'on',
-            mode: props[1],
-            temperature: props[2] / 10,
-            humidity: props[3],
-            water_level: Math.min(100, props[4] / 120 * 100),
-        };
+        this.enabled = props[0] === 'on';
+        this.mode = props[1];
+        this.temperature = props[2] / 10;
+        this.humidity = props[3];
+        this.water_level = Math.min(100, props[4] / 120 * 100);
+        this.updatedAt = Date.now();
+
+        this.commit();
     }
 
     public async enable()
@@ -58,8 +65,8 @@ export class Humidifier implements ShelterDevice<HumidifierProps>
         const result = await this.miio.call('set_power', ['on']);
 
         if (result.code === 0 && result.data[0] === 'ok') {
-            this.state.properties.enabled = true;
-            this.state.commit();
+            this.enabled = true;
+            this.commit();
         }
     }
 
@@ -68,8 +75,8 @@ export class Humidifier implements ShelterDevice<HumidifierProps>
         const result = await this.miio.call('set_power', ['off']);
 
         if (result.code === 0 && result.data[0] === 'ok') {
-            this.state.properties.enabled = false;
-            this.state.commit();
+            this.enabled = true;
+            this.commit();
         }
     }
 
@@ -89,8 +96,11 @@ export class Humidifier implements ShelterDevice<HumidifierProps>
             }
         }
 
-        return {code: 0, data: {
-            properties: this.state.properties
-        }};
+        return {
+            code: 0,
+            data: {
+                properties: this.properties
+            }
+        };
     }
 }
