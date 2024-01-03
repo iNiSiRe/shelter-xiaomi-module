@@ -13,6 +13,8 @@ export class XiaomiGateway extends ShelterDevice
 
     private alarm: boolean = false;
 
+    private updatedAt: number = 0;
+
     constructor(
         host: string,
         token: string,
@@ -32,7 +34,8 @@ export class XiaomiGateway extends ShelterDevice
 
     get properties(): object {
         return {
-            alarm: this.alarm
+            alarm: this.alarm,
+            updatedAt: this.updatedAt
         };
     }
 
@@ -120,6 +123,7 @@ export class XiaomiGateway extends ShelterDevice
 
         if (result.code === 0) {
             this.alarm = enable;
+            this.updatedAt = Date.now();
             this.commit();
         }
 

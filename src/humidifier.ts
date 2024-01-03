@@ -9,7 +9,7 @@ export class Humidifier extends ShelterDevice
     public mode: string = 'off';
     public temperature: number = 0;
     public humidity: number = 0;
-    public water_level: number = 0;
+    public waterLevel: number = 0;
     public updatedAt: number = 0;
 
     constructor(
@@ -35,7 +35,8 @@ export class Humidifier extends ShelterDevice
             mode: this.mode,
             temperature: this.temperature,
             humidity: this.humidity,
-            water_level: this.water_level
+            waterLevel: this.waterLevel,
+            updatedAt: this.updatedAt
         };
     }
 
@@ -54,7 +55,7 @@ export class Humidifier extends ShelterDevice
         this.mode = props[1];
         this.temperature = props[2] / 10;
         this.humidity = props[3];
-        this.water_level = Math.min(100, props[4] / 120 * 100);
+        this.waterLevel = Math.min(100, props[4] / 120 * 100);
         this.updatedAt = Date.now();
 
         this.commit();
@@ -75,7 +76,7 @@ export class Humidifier extends ShelterDevice
         const result = await this.miio.call('set_power', ['off']);
 
         if (result.code === 0 && result.data[0] === 'ok') {
-            this.enabled = true;
+            this.enabled = false;
             this.commit();
         }
     }
