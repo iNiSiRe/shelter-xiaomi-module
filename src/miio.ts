@@ -214,6 +214,19 @@ export class Miio {
 
     private async doHandshake(): Promise<Handshake>
     {
+        do {
+            try {
+                return await this.sendHandshake();
+            } catch (e: any) {
+                console.error(`miio: Handshake error "${e.message}"`);
+            }
+        } while (this.handshakeStatus !== HandshakeStatus.Completed || this.handshake === undefined);
+
+        return this.handshake
+    }
+
+    private async sendHandshake(): Promise<Handshake>
+    {
         if (this.handshakeStatus === HandshakeStatus.Completed) {
             if (this.handshake && this.handshake.isFresh()) {
                 return this.handshake;
@@ -224,6 +237,7 @@ export class Miio {
         }
 
         if (this.handshakeStatus === HandshakeStatus.Empty) {
+            console.log('miio: Send handshake');
             this.send(new Hello());
             this.handshakeStatus = HandshakeStatus.InProgress;
         }
@@ -232,14 +246,14 @@ export class Miio {
             this.waitingHandshake.push(resolve);
             setTimeout(() => {
                 this.waitingHandshake.splice(this.waitingHandshake.indexOf(resolve, 0), 1);
-                reject();
+                reject(new Error('timeout'));
             }, 3000);
         });
     }
 
     private handleHandshake(packet: Generic): void
     {
-        // console.log('Handshake received');
+        console.log('miio: Handshake received');
 
         this.handshake = new Handshake(packet.header.deviceType, packet.header.deviceId, packet.header.timestamp);
         this.handshakeStatus = HandshakeStatus.Completed;
@@ -294,7 +308,7 @@ export class Miio {
 
     public async call(method: string, parameters: object): Promise<Result>
     {
-        console.log('Call', method, parameters);
+        console.log('miil: Call', method, parameters);
 
         const handshake = await this.doHandshake();
 
@@ -304,7 +318,7 @@ export class Miio {
         this.send(call);
 
         const result = await this.waitResult(id);
-        console.log('Call result', result);
+        console.log('miio: Call result', result);
 
         return result;
     }

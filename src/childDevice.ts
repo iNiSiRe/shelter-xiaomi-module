@@ -21,13 +21,9 @@ export abstract class ChildDevice extends ShelterDevice implements ZigbeeDevice
         return {code: -1, data: {error: 'Bad method'}};
     }
 
-    handleZigbeeReport(update: ZigbeeParam[], quality: ZigbeeQuality)
-    {
-    }
+    abstract handleZigbeeReport(update: ZigbeeParam[], quality: ZigbeeQuality): void;
 
-    handleZigbeeHeartbeat(update: ZigbeeParam[], quality: ZigbeeQuality)
-    {
-    }
+    abstract handleZigbeeHeartbeat(update: ZigbeeParam[], quality: ZigbeeQuality): void;
 }
 
 abstract class SensorWithBattery extends ChildDevice
@@ -36,7 +32,6 @@ abstract class SensorWithBattery extends ChildDevice
 
     handleZigbeeHeartbeat(update: ZigbeeParam[], quality: ZigbeeQuality)
     {
-        super.handleZigbeeHeartbeat(update, quality);
         this.handleZigbeeReport(update, quality);
 
         for (const param of update) {
@@ -60,8 +55,6 @@ export class WeatherSensor extends SensorWithBattery
     public updatedAt?: number;
 
     handleZigbeeReport(update: ZigbeeParam[], quality: ZigbeeQuality) {
-        super.handleZigbeeReport(update, quality);
-
 
         for (const param of update) {
             switch (param.res_name) {
