@@ -246,6 +246,7 @@ export class Miio {
             this.waitingHandshake.push(resolve);
             setTimeout(() => {
                 this.waitingHandshake.splice(this.waitingHandshake.indexOf(resolve, 0), 1);
+                this.handshakeStatus = HandshakeStatus.Empty;
                 reject(new Error('timeout'));
             }, 3000);
         });

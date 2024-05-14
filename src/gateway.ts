@@ -81,11 +81,10 @@ export class XiaomiGateway extends ShelterDevice
 
     private async getDeviceList(): Promise<Array<{did: string, model: string, num: number, total: number}>>
     {
-        const result = await this.miio.call('get_device_list', []);
-
-        if (result.code !== 0) {
-            return [];
-        }
+        let result = null;
+        do {
+            result = await this.miio.call('get_device_list', []);
+        } while (result.code !== 0)
 
         return result.data;
     }
