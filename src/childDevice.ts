@@ -152,6 +152,32 @@ export class MagnetSensor extends SensorWithBattery
     }
 }
 
+export class WaterLeakSensor extends SensorWithBattery
+{
+    public leak?: {active: boolean, updatedAt: number};
+
+    get properties(): object {
+        return {
+            battery: this.battery ?? null,
+            leak: this.leak ?? null
+        };
+    }
+
+    handleZigbeeReport(update: ZigbeeParam[], quality: ZigbeeQuality) {
+        for (const param of update) {
+            switch (param.res_name) {
+                // 1 when the contacts get wet, 0 once they are dry again.
+                case '3.1.85': {
+                    this.leak = {active: param.value === 1, updatedAt: Date.now()};
+                    break;
+                }
+            }
+        }
+
+        this.commit();
+    }
+}
+
 export class ChildDeviceFactory
 {
     public create(did: string, model: string): ChildDevice|null {
@@ -167,6 +193,10 @@ export class ChildDeviceFactory
             }
             case 'lumi.sensor_motion.aq2': {
                 return new MotionSensor(did, model);
+                break;
+            }
+            case 'lumi.sensor_wleak.aq1': {
+                return new WaterLeakSensor(did, model);
                 break;
             }
             default: {
