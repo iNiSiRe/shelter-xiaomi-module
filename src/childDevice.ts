@@ -129,7 +129,9 @@ export class MotionSensor extends SensorWithBattery
 
 export class MagnetSensor extends SensorWithBattery
 {
-    public magnet?: {open: boolean, updatedAt: number};
+    // updatedAt is when the door last changed: null for the first reading after a restart,
+    // since that reading only tells where the door stands, not when it got there.
+    public magnet?: {open: boolean, updatedAt: number|null};
 
     get properties(): object {
     return {
@@ -141,8 +143,12 @@ export class MagnetSensor extends SensorWithBattery
     handleZigbeeReport(update: ZigbeeParam[], quality: ZigbeeQuality) {
         for (const param of update) {
             switch (param.res_name) {
+                // The heartbeat (every ~50 min) repeats the current state, so only a change counts.
                 case '3.1.85': {
-                    this.magnet = {open: param.value === 1, updatedAt: Date.now()};
+                    const open = param.value === 1;
+                    if (this.magnet?.open !== open) {
+                        this.magnet = {open, updatedAt: this.magnet ? Date.now() : null};
+                    }
                     break;
                 }
             }
